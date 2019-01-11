@@ -35,6 +35,10 @@ void MucomModule::SetVoice(const char *file) {
   voicefile = file;
 }
 
+void MucomModule::SetOutput(const char *file) {
+  outfile = file;
+}
+
 bool MucomModule::Open(const char *workingDirectory, const char *songFilename) {
   chdir(workingDirectory);
   mucom = new CMucom();

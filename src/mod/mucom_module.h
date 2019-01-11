@@ -14,6 +14,7 @@ public:
     void SetRate(int rate);
     void SetPCM(const char *file);
     void SetVoice(const char *file);
+    void SetOutput(const char *file);
     void Mix(short *buffer, int samples);
     bool Play();
     void Close();
