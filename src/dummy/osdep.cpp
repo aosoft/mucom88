@@ -39,6 +39,7 @@ bool OsDependent::SendAudio() {
 
 // 実チップ
 bool OsDependent::InitRealChip() {
+	return false;
 }
 
 void OsDependent::FreeRealChip() {
@@ -70,6 +71,7 @@ void OsDependent::UpdateTimer() {
 
 // 時間
 int OsDependent::GetMilliseconds() {
+	return 0;
 }
 
 void OsDependent::Delay(int ms) {

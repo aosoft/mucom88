@@ -53,7 +53,7 @@ bool MucomModule::Open(const char *workingDirectory, const char *songFilename) {
     compileResult = NULL;
   }
   
-  compileResult = new char[strlen(result)];
+  compileResult = new char[strlen(result) + 1];
   strcpy(compileResult,result);
 
   delete mucom;
