@@ -1,54 +1,49 @@
 // OsDependent 
 // BouKiCHi 2019
 
-#ifndef _OS_DEP_H_
-#define _OS_DEP_H_
+#ifndef _OS_DEP_DUMMY_H_
+#define _OS_DEP_DUMMY_H_
 
-#include "callback.h"
+#include <stdint.h>
+#include "../osdep.h"
 
-class OsDependent  {
+class OsDependentDummy : public OsDependent {
 public:
-	OsDependent();
-	~OsDependent();
+	OsDependentDummy();
+	~OsDependentDummy();
 
-	// COM
+	// COMの初期化(最初の１回のみ)
 	bool CoInitialize();
 
 	// サウンド
-	AudioCallback *UserAudioCallback;
 	bool InitAudio(void *hwnd, int Rate, int BufferSize);
 	void FreeAudio();
 	bool SendAudio();
 	void WaitSendingAudio();
-	bool MuteAudio;
-	
+
 	// 実チップ
 	bool InitRealChip();
 	void FreeRealChip();
 	void ResetRealChip();
 	int CheckRealChip();
 	void OutputRealChip(unsigned int Register, unsigned int Data);
+	void OutputRealChipAdpcm(void *pData, int size);
 
 	// タイマー
-	TimerCallback *UserTimerCallback;
 	bool InitTimer();
 	void FreeTimer();
 	void UpdateTimer();
-	int GetPassTick();
+	void ResetTime();
+	int GetElapsedTime();
 
 	// 時間
 	int GetMilliseconds();
 	void Delay(int ms);
 
-private:
-	long SoundSending;
-
-	unsigned int TimerId;
-	int TimerPeriod;
-	int LastTick;
-
-	void *SoundInstance;
-	void *RealChipInstance;
+	// プラグイン拡張
+	int InitPlugin(Mucom88Plugin *plg, char *filename);
+	int ExecPluginVMCommand( int, int, int, void *, void *);
+	int ExecPluginEditorCommand( int, int, int, void *, void *);
 };
 
 #endif

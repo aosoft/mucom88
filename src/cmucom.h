@@ -9,17 +9,13 @@
 
 /*------------------------------------------------------------*/
 
-#define VERSION "1.7a"
-#define MAJORVER 1
-#define MINORVER 7
-
 #define MUCOM_DEFAULT_PCMFILE "mucompcm.bin"
 #define MUCOM_DEFAULT_VOICEFILE "voice.dat"
 
 #define MUCOM_CH_FM1 0
 #define MUCOM_CH_PSG 3
-#define MUCOM_CH_FM2 6
-#define MUCOM_CH_RHYTHM 9
+#define MUCOM_CH_FM2 7
+#define MUCOM_CH_RHYTHM 6
 #define MUCOM_CH_ADPCM 10
 #define MUCOM_MAXCH 11				// 最大ch(固定)
 
@@ -28,6 +24,8 @@
 #define MUCOM_FILE_MAXSTR 512		// ファイル名の最大文字数
 
 #define MUCOM_DATA_ADDRESS 0xc200
+
+#define MUCOM_AUDIO_RATE 55467		// Sampling Rate 55K
 
 #define MUCOM_RESET_PLAYER 0
 #define MUCOM_RESET_EXTFILE 1
@@ -52,15 +50,36 @@
 #define MUCOM_OPTION_FMMUTE 1
 #define MUCOM_OPTION_SCCI 2
 #define MUCOM_OPTION_FASTFW 4
+#define MUCOM_OPTION_STEP 8
 
 #define MUCOM_MUBSIZE_MAX (0xE300-0xC200)
 #define MUCOM_BASICSIZE_MAX 0x6000
 
+#define MUCOM_HEADER_VERSION1 1		// 1.0 Header
+#define MUCOM_HEADER_VERSION2 2		// 2.0 Header
+
+#define MUCOM_FLAG_UTF8TAG 1		// TAG dataの文字コードはUTF8
+
+//	MUBのバイナリデータ生成に関する情報
+#define MUCOM_SYSTEM_UNKNOWN 0		// 不明なシステムによる生成
+#define MUCOM_SYSTEM_PC88 1			// PC88互換のシステムによる生成
+#define MUCOM_SYSTEM_PC88UC 2		// PC88と上位互換のシステムによる生成
+#define MUCOM_SYSTEM_NATIVE 3		// ネイティブなシステムによる生成
+
+//	MUBが演奏時に想定するシステムの情報
+#define MUCOM_TARGET_UNKNOWN 0		// 未指定
+#define MUCOM_TARGET_YM2203 1		// YM2203による演奏
+#define MUCOM_TARGET_YM2608 2		// YM2608による演奏
+#define MUCOM_TARGET_YM2151 3		// YM2151による演奏
+#define MUCOM_TARGET_MULTI 0x80		// 複数のチップによる演奏
+
+#define MUCOM_FMVOICE_MAX 16
 
 #define MUCOM_CMPOPT_USE_EXTROM 1
 #define MUCOM_CMPOPT_COMPILE 2
 #define MUCOM_CMPOPT_STEP 8
 #define MUCOM_CMPOPT_INFO 0x100
+
 
 //	MUBHED structure
 //
@@ -77,10 +96,24 @@ typedef struct
 	int pcmsize;		// PCM data size
 	short jumpcount;	// Jump count (for skip)
 	short jumpline;		// Jump line number (for skip)
+
+	//	Extend data (2.0 Header)
+	//
+	short ext_flags;		// Option flags ( MUCOM_FLAG_* )
+	char ext_system;		// build system ( MUCOM_SYSTEM_* )
+	char ext_target;		// playback target ( MUCOM_TARGET_* )
+	short ext_channel_num;	// Max channel table num
+	short ext_fmvoice_num;	// internal FM voice table num
+
+	int ext_player;			// external player option
+	int pad1;				// not use (reserved)
+	unsigned char ext_fmvoice[MUCOM_FMVOICE_MAX];	// FM voice no.(orginal) table
 } MUBHED;
 
 //	PCHDATA structure
 //
+#define MUCOM_PCHDATA_PC88_SIZE 38
+
 typedef struct
 {
 	//	Player Channel Data structure
@@ -122,7 +155,10 @@ typedef struct
 							// bit 5 = REVERVE FLAG
 							// bit 4 = REVERVE MODE
 	int retadr1, retadr2;	// ﾘﾀｰﾝｱﾄﾞﾚｽ	34, 35
-	int pan, empty;			// 36, 37 (ｱｷ) = 代わりにpan dataを入れている
+	int pan, keyon;			// 36, 37 (ｱｷ) = 代わりにpan,keyon dataを入れている
+
+	int vnum_org;			// 音色No.(オリジナル)
+	int vol_org;			// ボリューム(オリジナル)
 
 } PCHDATA;
 
@@ -137,23 +173,19 @@ public:
 	CMucom();
 	~CMucom();
 
-	void Init(void *window=NULL, int option=0,int Rate=0);
+	void Init(void *window = NULL, int option = 0, int Rate = 0);
 	void Reset(int option=0);
 
 	int Play(int num=0);
-	void PlayMemory();
 	int Stop(int option=0);
 	int Fade(void);
 	int PlayEffect(int num=0);
 
 	void PlayLoop();
-
 	void RenderAudio(void *mix, int size);
 	void UpdateTime(int tick_ms);
 
-
-
-	int LoadPCM(const char *fname= MUCOM_DEFAULT_PCMFILE);
+	int LoadPCM(const char *fname = MUCOM_DEFAULT_PCMFILE);
 	int LoadFMVoice(const char *fname = MUCOM_DEFAULT_VOICEFILE);
 	int LoadMusic(const char *fname, int num = 0);
 	int CompileFile(const char *fname, const char *sname, int option=0);
@@ -167,12 +199,14 @@ public:
 	char *GetMessageBuffer(void);
 	int GetStatus(int option);
 	void SetVMOption(int option, int mode);
+	void SetAudioRate(int rate);
 
 	char *GetInfoBuffer(void);
 	char *GetInfoBufferByName(char *name);
 	void DeleteInfoBuffer(void);
 	void PrintInfoBuffer(void);
 
+	int MUBGetHeaderVersion(MUBHED *hed);
 	char *MUBGetData(MUBHED *hed, int &size);
 	char *MUBGetTagData(MUBHED *hed, int &size);
 	char *MUBGetPCMData(MUBHED *hed, int &size);
@@ -186,15 +220,13 @@ public:
 	int GetChannelData(int ch, PCHDATA *result);
 
 private:
-	// オーディオ
-	double AudioStep;
-	double AudioLeftMs;
-
 	//		Settings
 	//
 	int	flag;			// flag (0=none/1=active)
 	bool playflag;		// playing flag
 	char pcmfilename[MUCOM_FILE_MAXSTR];	// loaded PCM file
+	int mubver;			// playing MUB version
+	MUBHED *hedmusic;	// playing Music data header
 
 	//		Compile Status
 	//
@@ -223,6 +255,10 @@ private:
 	void MusicBufferInit(void);
 	void MusicBufferTerm(void);
 	CMemBuf *musbuf[MUCOM_MUSICBUFFER_MAX];
+
+	//		Audio
+	double AudioStep;
+	double AudioLeftMs;
 
 };
 

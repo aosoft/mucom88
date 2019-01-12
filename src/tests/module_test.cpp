@@ -3,7 +3,6 @@
 
 #include "mucom_module.h"
 
-
 void WriteWORD(unsigned char *p, unsigned short v) {
     p[0] = (v & 0xff);
     p[1] = ((v>>8) & 0xff);
@@ -73,6 +72,7 @@ void recordWav(const char *outputFilename, MucomModule *m,int seconds) {
 
 int compileWav(const char *filename, const char *wavFilename) {
     MucomModule *module = new MucomModule();
+    // module->SetVolume(1.0);
     printf("File:%s\n", filename);
     bool r = module->Open(".", filename);
     printf("open\n");
@@ -84,6 +84,7 @@ int compileWav(const char *filename, const char *wavFilename) {
     recordWav(wavFilename, module, 30);
     printf("close\n");
     module->Close();
+    delete module;
 }
 
 int main(int argc, char *argv[])

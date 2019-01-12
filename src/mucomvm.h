@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include "Z80/Z80.h"
 #include "fmgen/opna.h"
+
+#include "mucom88config.h"
 #include "osdep.h"
 #include "membuf.h"
 
@@ -37,10 +39,6 @@ public:
 	mucomvm();
 	~mucomvm();
 
-	// OS依存
-	void CoInitialize(void) { osd->CoInitialize(); }
-	void PlayLoop(void);
-
 	//		Z80コントロール
 	void InitSoundSystem(int Rate);
 	void SetOption(int option);
@@ -49,6 +47,7 @@ public:
 	void CallAndHalt(uint16_t adr);
 	int CallAndHalt2(uint16_t adr, uint8_t code);
 	int CallAndHaltWithA(uint16_t adr, uint8_t areg);
+	int ExecUntilHalt(int times = 0x10000);
 
 	//		仮想マシンコントロール
 	void Reset(void);
@@ -63,8 +62,7 @@ public:
 	void SetVolume(int fmvol, int ssgvol);
 	void SetFastFW(int value);
 	void SkipPlay(int count);
-
-	int ExecUntilHalt(int times = 0x10000);
+	void PlayLoop(void);
 
 	//		仮想マシンステータス
 	int GetFlag(void) { return m_flag; }
@@ -75,14 +73,14 @@ public:
 	void PeekToStr(char *out, uint16_t adr, uint16_t length);
 	void BackupMem(uint8_t *mem_bak);
 	void RestoreMem(uint8_t *mem_bak);
-	void SetPlayFlag(bool fl) { playflag = fl; }
 
+	void ResetTimer(void);
 	void StartINT3(void);
 	void StopINT3(void);
-	void SetStreamTime(int time) { time_stream = time; }
 	void SetWindow(void *window) { master_window = window; }
 	void SetIntCount(int value) { time_intcount = value; }
 	int GetIntCount(void) { return time_intcount; }
+	int GetMasterCount(void) { return time_master; }
 	int GetPassTick(void) { return pass_tick; }
 
 	//		YM2608ステータス
@@ -111,16 +109,14 @@ public:
 	uint8_t *GetChData(int ch);
 	uint8_t GetChWork(int index);
 	void ProcessChData(void);
-	
-	// 
+
+	//		オーディオ書き込み
 	void RenderAudio(void *mix, int size);
 	void AudioCallback(void *mix, int size);
 	void UpdateTime(int tick);
 	void UpdateCallback(int tick);
 
 private:
-	int Rate;
-
 	//		Z80
 	int32_t load(uint16_t adr);
 	void store(uint16_t adr, uint8_t data);
@@ -137,12 +133,8 @@ private:
 	uint8_t mem[0x10000];				// メインメモリ
 	uint8_t vram[VMBANK_MAX][0x4000];	// GVRAM(3:退避/012=BRG)
 
-	// OS依存
-	OsDependent *osd;
-
 	//		音源
 	FM::OPNA *opn;
-	void *master_window;
 
 	int sound_reg_select;
 	int sound_reg_select2;
@@ -152,6 +144,7 @@ private:
 	int FMInData2();
 
 	//		OPNA情報スタック
+	int Rate;
 	uint8_t chmute[OPNACH_MAX];
 	uint8_t chstat[OPNACH_MAX];
 	uint8_t regmap[OPNAREG_MAX];
@@ -162,25 +155,31 @@ private:
 	uint8_t *pchdata;
 	uint8_t pchwork[16];
 
-	//		タイマー
-	void StreamSend(void);
-
+	//		割り込みタイマー関連
 	int time_master;
-	int time_stream;
 	int time_scount;
 	int time_intcount;
-	int time_interrupt;
 	int pass_tick;
+	int last_tick;
 
-	bool busyflag;
 	bool playflag;
+	bool busyflag;
 	bool int3flag;
 	int predelay;
 	int int3mask;
 	int msgid;
 
+	void checkThreadBusy(void);
+
 	//		メッセージバッファ
 	CMemBuf *membuf;
+
+	//		OS依存部分
+	OsDependent *osd;
+	void *master_window;
+
 };
+
+
 
 #endif

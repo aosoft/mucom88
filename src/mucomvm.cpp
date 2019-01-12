@@ -8,16 +8,21 @@
 //
 
 #include <stdio.h>
+#include <stdio.h>
 #include "mucomvm.h"
+
 #include "adpcm.h"
 #include "mucomerror.h"
 
-#define BUFSIZE 200				// Stream Buffer 200ms
+#define BUFSIZE 200			// Stream Buffer 200ms
 #define baseclock 7987200		// Base Clock
 
-// #define USE_SCCI
-#define USE_PERFORMANCE_COUNTER
 
+#ifdef MUCOM88WIN
+#include "win32/osdep_win.h"		// とりあえず仮作成中
+#else
+#include "dummy/osdep_dummy.h"
+#endif
 
 /*------------------------------------------------------------*/
 /*
@@ -35,13 +40,14 @@ mucomvm::mucomvm(void)
 
 	opn = NULL;
 	membuf = NULL;
+	osd = NULL;
 	master_window = NULL;
 
-	osd = new OsDependent();
-	
 	channel_max = 0;
 	channel_size = 0;
 	pchdata = NULL;
+
+	playflag = false;
 }
 
 mucomvm::~mucomvm(void)
@@ -49,11 +55,10 @@ mucomvm::~mucomvm(void)
 	if (osd) {
 		osd->FreeTimer();
 		osd->FreeAudio();
-#ifdef USE_SCCI
 		osd->FreeRealChip();
-#endif
 		osd = NULL;
 	}
+
 	if (opn) {
 		delete opn;
 		opn = NULL;
@@ -92,6 +97,22 @@ void mucomvm::SetFastFW(int value)
 }
 
 
+static void RunAudioCallback(void *CallbackInstance, void *MethodInstance);
+static void RunTimerCallback(void *CallbackInstance, void *MethodInstance);
+
+// オーディオコールバック
+static void RunAudioCallback(void *CallbackInstance, void *MethodInstance) {
+	AudioCallback *acb = (AudioCallback *)CallbackInstance;
+	((mucomvm *)MethodInstance)->AudioCallback(acb->mix, acb->size);
+}
+
+// タイマーコールバック
+static void RunTimerCallback(void *CallbackInstance, void *MethodInstance) {
+	TimerCallback *tcb = (TimerCallback *)CallbackInstance;
+	((mucomvm *)MethodInstance)->UpdateCallback(tcb->tick);
+}
+
+
 void mucomvm::ResetFM(void)
 {
 	//	VMのリセット(FM部のみ)
@@ -104,7 +125,7 @@ void mucomvm::ResetFM(void)
 	for (i = 0; i < OPNACH_MAX; i++) {
 		chmute[i] = 0; chstat[i] = 0;
 	}
-	memset(regmap,0,OPNAREG_MAX);
+	memset(regmap, 0, OPNAREG_MAX);
 
 	if (opn) {
 		int3mask = 0;
@@ -116,28 +137,11 @@ void mucomvm::ResetFM(void)
 		opn->SetVolumePSG(m_ssgvol);
 	}
 
-#ifdef USE_SCCI
-	osd->ResetRealChip();
-	osd->OutputRealChip(0x2d, 0);
-#endif
-
+	if (m_option & VM_OPTION_SCCI) {
+		osd->ResetRealChip();
+		osd->OutputRealChip(0x2d, 0);
+	}
 }
-
-static void RunAudioCallback(void *CallbackInstance,void *MethodInstance);
-static void RunTimerCallback(void *CallbackInstance,void *MethodInstance);
-
-// オーディオコールバック
-static void RunAudioCallback(void *CallbackInstance,void *MethodInstance) {
-    AudioCallback *acb = (AudioCallback *)CallbackInstance;
-    ((mucomvm *)MethodInstance)->AudioCallback(acb->mix,acb->size);
-}
-
-// タイマーコールバック
-static void RunTimerCallback(void *CallbackInstance,void *MethodInstance) {
-    TimerCallback *tcb = (TimerCallback *)CallbackInstance;
-    ((mucomvm *)MethodInstance)->UpdateCallback(tcb->tick);
-}
-
 
 void mucomvm::InitSoundSystem(int rate)
 {
@@ -149,20 +153,44 @@ void mucomvm::InitSoundSystem(int rate)
 	playflag = false;
 	predelay = 0;
 
-
-	//		SCCI対応
-	//
-#ifdef USE_SCCI
-	if (m_option & VM_OPTION_SCCI) {
-		osd->InitRealChip();
+	// OS依存部分
+#ifdef MUCOM88WIN
+	{
+		OsDependentWin32 *osdwin32 = new OsDependentWin32();
+		osd = osdwin32;
+	}
+#else
+	{
+		osd = new OsDependentDummy();
 	}
 #endif
 
-	if (!(m_option & VM_OPTION_STEP)) {
-		osd->UserAudioCallback->Set(this,&RunAudioCallback);
-		osd->UserTimerCallback->Set(this,&RunTimerCallback);
+	if (osd == NULL) return;
 
+	//		COM初期化
+	//
+	osd->CoInitialize();
+
+	//		SCCI対応
+	//
+	if (m_option & VM_OPTION_SCCI) {
+		osd->InitRealChip();
+	}
+
+	//		オーディオ
+	if (!(m_option & VM_OPTION_STEP)) {
+		osd->UserAudioCallback->Set(this, &RunAudioCallback);
+		osd->UserTimerCallback->Set(this, &RunTimerCallback);
 		osd->InitAudio(master_window, rate, BUFSIZE);
+	}
+
+	//		タイマー初期化
+	//
+	ResetTimer();
+
+	if (!(m_option & VM_OPTION_STEP)) {
+		osd->InitTimer();
+		osd->ResetTime();
 	}
 
 	opn = new FM::OPNA;
@@ -178,18 +206,7 @@ void mucomvm::InitSoundSystem(int rate)
 		ResetFM();
 	}
 
-	//		タイマー初期化
-	//
-	time_master = 0;
-	if (!(m_option & VM_OPTION_STEP)) {
-		osd->InitTimer();
-	}
-	time_master = 0;
-	time_stream = 20;// buffer_length / num_blocks;
-	time_scount = 0;
-	time_intcount = 0;
-	time_interrupt = 10;
-	playflag = false;
+	playflag = true;
 	//printf("#Stream update %dms.\n", time_stream);
 }
 
@@ -228,9 +245,9 @@ int mucomvm::DeviceCheck(void)
 {
 	//	デバイスの正常性をチェック
 	//
-#ifdef USE_SCCI
-	return osd->CheckRealChip();
-#endif
+	if (m_option & VM_OPTION_SCCI) {
+		return osd->CheckRealChip();
+	}
 	return 0;
 }
 
@@ -650,14 +667,9 @@ int mucomvm::LoadPcmFromMem(const char *buf, int sz, int maxpcm)
 	pcmmem = (char *)opn->GetADPCMBuffer();
 	memcpy(pcmmem, pcmdat, sz - infosize);
 
-#ifdef USE_SCCI
-	// リアルチップ対応
-	if (m_pChip) {
-		if (m_pChip->IsRealChip()) {
-			m_pChip->SendAdpcmData(pcmdat, sz - infosize);
-		}
+	if (m_option & VM_OPTION_SCCI) {
+		osd->OutputRealChipAdpcm(pcmdat, sz - infosize);
 	}
-#endif
 
 	return 0;
 }
@@ -718,30 +730,6 @@ int mucomvm::SaveMemExpand(const char *fname, int adr, int size, char *header, i
 }
 
 
-void mucomvm::StartINT3(void)
-{
-	//		INT3割り込みを開始
-	//
-	// if (int3flag) {
-	// 	checkThreadBusy();
-	// }
-	// getElapsedTime();
-	SetIntCount(0);
-	predelay = 4;
-	int3flag = true;
-}
-
-
-void mucomvm::StopINT3(void)
-{
-	//		INT3割り込みを停止
-	//
-	// checkThreadBusy();
-	SetIntCount(0);
-	// getElapsedTime();
-	predelay = 4;
-}
-
 void mucomvm::SkipPlay(int count)
 {
 	//		再生のスキップ
@@ -757,24 +745,51 @@ void mucomvm::SkipPlay(int count)
 		CallAndHalt(vec);
 		jcount--;
 		time_intcount++;
-#ifdef USE_SCCI
-		if ((jcount & 3) == 0) osd->Delay(1);	// ちょっと待ちます
-#endif
+		if (m_option & VM_OPTION_SCCI) {
+			if ((jcount & 3) == 0) osd->Delay(1);	// ちょっと待ちます
+		}
 	}
 	SetChMuteAll(false);
 }
 
-// pass_tick: 経過時間。単位はms。
-void mucomvm::UpdateTime(int pass_tick)
-{
-	if (playflag == false) return;
 
-	int base = 1024 * pass_tick;
+/*------------------------------------------------------------*/
+/*
+Timer
+*/
+/*------------------------------------------------------------*/
+
+void mucomvm::ResetTimer(void)
+{
+	busyflag = false;
+	predelay = 0;
+
+	time_master = 0;
+	time_scount = 0;
+	time_intcount = 0;
+
+	pass_tick = 0;
+	last_tick = 0;
+
+	osd->ResetTime();
+}
+
+
+void mucomvm::UpdateTime(int base)
+{
+	//		1msごとの割り込み
+	//		base値は、1024=1msで経過時間が入る
+	//
+	int tick;
+	if (playflag == false) {
+		return;
+	}
 
 	bool stream_event = false;
 	bool int3_mode = int3flag;
-	time_master += pass_tick;//timer_period;
-	time_scount += pass_tick;//timer_period;
+	tick = (base + (int)TICK_FACTOR - 1) >> TICK_SHIFT;
+	time_master += tick;
+	time_scount += tick;
 
 	if (int3mask & 128) int3_mode = false;		// 割り込みマスク
 
@@ -801,26 +816,64 @@ void mucomvm::UpdateTime(int pass_tick)
 		}
 	}
 
-	if (m_option & VM_OPTION_STEP) return;
-
 	if ((stream_event == false) && (int3_mode == false)) {
 		// INT3が無効な場合もストリーム再生は続ける
-		if (time_scount > 20 ) {
+		if (time_scount > 10) {
 			stream_event = true;
-			time_scount = 0;
 		}
 	}
 
 	if (stream_event) {
+		time_scount = 0;
 		stream_event = false;
 		osd->SendAudio();
-		//if (pass_tick>1) printf("INT%d (%d) %d\n", time_scount, pass_tick, time_master);
+		//SetEvent(hevent);
+		//StreamSend();
 	}
+
+	//if (pass_tick>1) printf("INT%d (%d) %d\n", time_scount, pass_tick, time_master);
 
 }
 
+
+void mucomvm::StartINT3(void)
+{
+	//		INT3割り込みを開始
+	//
+	if (int3flag) {
+		osd->WaitSendingAudio();
+		checkThreadBusy();
+	}
+	osd->ResetTime();
+	SetIntCount(0);
+	predelay = 4;
+	int3flag = true;
+}
+
+
+void mucomvm::StopINT3(void)
+{
+	//		INT3割り込みを停止
+	//
+	osd->WaitSendingAudio();
+	int3flag = false;
+	checkThreadBusy();
+
+	SetIntCount(0);
+	predelay = 0;
+}
+
+
+void mucomvm::checkThreadBusy(void)
+{
+	//		スレッドがVMを使用しているかチェック
+	//
+	for (int i = 0; i < 300 && busyflag; i++) Sleep(10);
+}
+
+
 void mucomvm::PlayLoop() {
-	while(1) {
+	while (1) {
 		osd->Delay(20);
 	}
 }
@@ -837,8 +890,9 @@ void mucomvm::UpdateCallback(int tick) {
 
 void mucomvm::AudioCallback(void *mix, int size) {
 	if (m_option & VM_OPTION_FMMUTE || m_option & VM_OPTION_STEP) return;
-	RenderAudio(mix,size);
+	RenderAudio(mix, size);
 }
+
 
 /*------------------------------------------------------------*/
 /*
@@ -872,10 +926,10 @@ void mucomvm::FMOutData(int data)
 	}
 	opn->SetReg(sound_reg_select, data);
 
-#ifdef USE_SCCI
-	osd->OutputRealChip(sound_reg_select, data);
-#endif
-
+	if (m_option & VM_OPTION_SCCI) {
+		// リアルチップ出力
+		osd->OutputRealChip(sound_reg_select, data);
+	}
 }
 
 //	データ出力(OPNA側)
@@ -890,9 +944,10 @@ void mucomvm::FMOutData2(int data)
 
 	opn->SetReg(sound_reg_select2 | 0x100, data);
 
-#ifdef USE_SCCI
-	osd->OutputRealChip(sound_reg_select2 | 0x100, data);
-#endif
+	if (m_option & VM_OPTION_SCCI) {
+		// リアルチップ出力
+		osd->OutputRealChip(sound_reg_select2 | 0x100, data);
+	}
 }
 
 //	データ入力

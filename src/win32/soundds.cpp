@@ -6,9 +6,9 @@
 //			onion software/onitama 2018/11
 //
 
-#include "mucomvm.h"
+#include "../mucomvm.h"
 #include "soundds.h"
-#include "fmgen/opna.h"
+#include "../fmgen/opna.h"
 
 #if defined( _MSC_VER )
 #pragma comment(lib,"winmm.lib")

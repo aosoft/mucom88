@@ -7,10 +7,10 @@ CC = gcc
 CFLAGS = 
 CXXFLAGS = -Wno-write-strings
 LDFLAGS = 
+DEFINES = 
 OBJS_DIR = objs
 TARGET_NAME = mucom88
 TARGET = $(TARGET_NAME).exe
-TARGET_TEST = osdep_test.exe
 TARGET_MODTEST = mod_test.exe
 
 # Win32用
@@ -33,10 +33,9 @@ LIBS += -mconsole
 .PHONY: all test $(OBJS_DIR)
 
 all: makedir $(TARGET)
-test: makedir $(TARGET_TEST)
-modtest: makedir $(TARGET_MODTEST)
+test: makedir $(TARGET_TEST) $(TARGET_MODTEST)
 
-DIRS = z80 fmgen plugin mod
+DIRS = z80 fmgen plugin module tests
 
 SRCS = membuf.cpp adpcm.cpp
 
@@ -55,27 +54,29 @@ SRCS += Z80/Z80.cpp
 SRCS += fmgen/file.cpp fmgen/fmgen.cpp fmgen/fmtimer.cpp 
 SRCS += fmgen/opm.cpp fmgen/opna.cpp fmgen/psg.cpp
 
+SRCS += callback.cpp
+SRCS += wavout.cpp
+SRCS += osdep.cpp
+
 MAIN_SRCS = main.cpp
 
 ifeq ($(OS_WIN32),1)
+DEFINES += -DMUCOM88WIN
 DIRS += win32
 DEP_SRCS += win32/realchip.cpp
 DEP_SRCS += win32/soundds.cpp
-DEP_SRCS += win32/osdep.cpp
-DEP_SRCS += win32/callback.cpp
+DEP_SRCS += win32/osdep_win.cpp
 else 
 DIRS += dummy
-DEP_SRCS += dummy/osdep.cpp
-DEP_SRCS += dummy/callback.cpp
+DEP_SRCS += dummy/osdep_dummy.cpp
 endif
 
-MOD_SRCS = mod/mucom_module.cpp
-MODTEST_SRCS = mod/module_test.cpp
+MOD_SRCS = module/mucom_module.cpp
+MODTEST_SRCS = tests/module_test.cpp
 
 # OS依存
 DEP_SRCS_BASE = $(basename $(DEP_SRCS))
 DEP_OBJS = $(addprefix $(OBJS_DIR)/,$(addsuffix .o,$(DEP_SRCS_BASE)))
-DEP_TEST_OBJ = $(OBJS_DIR)/win32/deptest.o
 
 # OS依存から参照される依存しないコード
 REF_SRCS = soundbuf.cpp
@@ -101,13 +102,10 @@ OBJS += $(DEP_OBJS) $(REF_OBJS)
 
 
 INCLUDES += -I. $(addprefix -I,$(DIRS) )
-CFLAGS += $(INCLUDES)
-CXXFLAGS += $(INCLUDES)
+CFLAGS += $(DEFINES) $(INCLUDES)
+CXXFLAGS += $(DEFINES) $(INCLUDES)
 
-$(TARGET_MODTEST) :  $(OBJS) $(MOD_OBJS) $(MODTEST_OBJS)
-	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS)
-
-$(TARGET_TEST) :  $(DEP_TEST_OBJ) $(DEP_OBJS) $(REF_OBJS)
+$(TARGET_MODTEST) : $(OBJS) $(MOD_OBJS) $(MODTEST_OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 $(TARGET) : $(MAIN_OBJS) $(OBJS)
@@ -124,7 +122,6 @@ $(OBJS_DIR)/%.o : %.c
 
 clean :
 	rm -f $(TARGET_MODTEST)
-	rm -f $(TARGET_TEST)
 	rm -f $(TARGET)
 	rm -rf $(OBJS_DIR)
 

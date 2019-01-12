@@ -1,9 +1,5 @@
 //	$Id: file.cpp,v 1.6 1999/12/28 11:14:05 cisc Exp $
 
-#include <stdio.h>
-#include <string.h>
-
-
 #include "headers.h"
 #include "File.h"
 
@@ -13,13 +9,11 @@
 
 FileIO::FileIO()
 {
-    fp = NULL;
 	flags = 0;
 }
 
 FileIO::FileIO(const char* filename, uint flg)
 {
-    fp = NULL;
 	flags = 0;
 	Open(filename, flg);
 }
@@ -37,15 +31,27 @@ bool FileIO::Open(const char* filename, uint flg)
 {
 	Close();
 
-	strncpy(path, filename, _MAXPATH);
+	strncpy(path, filename, MAX_PATH);
 
-	fp = fopen(filename, "rb");
-	if (!fp)
-        return false;
-    
+	DWORD access = (flg & readonly ? 0 : GENERIC_WRITE) | GENERIC_READ;
+	DWORD share = (flg & readonly) ? FILE_SHARE_READ : 0;
+	DWORD creation = flg & create ? CREATE_ALWAYS : OPEN_EXISTING;
+
+	hfile = CreateFile(filename, access, share, 0, creation, 0, 0);
+	
+	flags = (flg & readonly) | (hfile == INVALID_HANDLE_VALUE ? 0 : open);
+	if (!(flags & open))
+	{
+		switch (GetLastError())
+		{
+		case ERROR_FILE_NOT_FOUND:		error = file_not_found; break;
+		case ERROR_SHARING_VIOLATION:	error = sharing_violation; break;
+		default: error = unknown; break;
+		}
+	}
 	SetLogicalOrigin(0);
 
-    return true;
+	return !!(flags & open);
 }
 
 // ---------------------------------------------------------------------------
@@ -56,13 +62,16 @@ bool FileIO::CreateNew(const char* filename)
 {
 	Close();
 
-	strncpy(path, filename, _MAXPATH);
+	strncpy(path, filename, MAX_PATH);
 
-    fp = fopen(filename, "wb");
-    if (!fp)
-        return false;
-    
-    SetLogicalOrigin(0);
+	DWORD access = GENERIC_WRITE | GENERIC_READ;
+	DWORD share = 0;
+	DWORD creation = CREATE_NEW;
+
+	hfile = CreateFile(filename, access, share, 0, creation, 0, 0);
+	
+	flags = (hfile == INVALID_HANDLE_VALUE ? 0 : open);
+	SetLogicalOrigin(0);
 
 	return !!(flags & open);
 }
@@ -73,7 +82,23 @@ bool FileIO::CreateNew(const char* filename)
 
 bool FileIO::Reopen(uint flg)
 {
-    return false;
+	if (!(flags & open)) return false;
+	if ((flags & readonly) && (flg & create)) return false;
+
+	if (flags & readonly) flg |= readonly;
+
+	Close();
+
+	DWORD access = (flg & readonly ? 0 : GENERIC_WRITE) | GENERIC_READ;
+	DWORD share = flg & readonly ? FILE_SHARE_READ : 0;
+	DWORD creation = flg & create ? CREATE_ALWAYS : OPEN_EXISTING;
+
+	hfile = CreateFile(path, access, share, 0, creation, 0, 0);
+	
+	flags = (flg & readonly) | (hfile == INVALID_HANDLE_VALUE ? 0 : open);
+	SetLogicalOrigin(0);
+
+	return !!(flags & open);
 }
 
 // ---------------------------------------------------------------------------
@@ -82,11 +107,11 @@ bool FileIO::Reopen(uint flg)
 
 void FileIO::Close()
 {
-    if (fp)
-        fclose(fp);
-    
-    fp = NULL;
-    
+	if (GetFlags() & open)
+	{
+		CloseHandle(hfile);
+		flags = 0;
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -95,11 +120,13 @@ void FileIO::Close()
 
 int32 FileIO::Read(void* dest, int32 size)
 {
-	if (!fp)
+	if (!(GetFlags() & open))
 		return -1;
-    
-    int len = (int)fread(dest, 1, size, fp);
-    return len;
+	
+	DWORD readsize;
+	if (!ReadFile(hfile, dest, size, &readsize, 0))
+		return -1;
+	return readsize;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,11 +135,13 @@ int32 FileIO::Read(void* dest, int32 size)
 
 int32 FileIO::Write(const void* dest, int32 size)
 {
-    if (!fp)
-        return -1;
-    
-    int len = (int)fwrite(dest, 1, size, fp);
-    return len;
+	if (!(GetFlags() & open) || (GetFlags() & readonly))
+		return -1;
+	
+	DWORD writtensize;
+	if (!WriteFile(hfile, dest, size, &writtensize, 0))
+		return -1;
+	return writtensize;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,25 +150,26 @@ int32 FileIO::Write(const void* dest, int32 size)
 
 bool FileIO::Seek(int32 pos, SeekMethod method)
 {
-    if (!fp)
-        return -1;
-    
+	if (!(GetFlags() & open))
+		return false;
+	
+	DWORD wmethod;
 	switch (method)
 	{
 	case begin:	
-        fseek(fp, pos, SEEK_SET);
-        break;
-	case current:
-        fseek(fp, pos, SEEK_CUR);
+		wmethod = FILE_BEGIN; pos += lorigin; 
+		break;
+	case current:	
+		wmethod = FILE_CURRENT; 
 		break;
 	case end:		
-        fseek(fp, pos, SEEK_END);
-        break;
+		wmethod = FILE_END; 
+		break;
 	default:
 		return false;
 	}
 
-    return true;
+	return 0xffffffff != SetFilePointer(hfile, pos, 0, wmethod);
 }
 
 // ---------------------------------------------------------------------------
@@ -148,10 +178,10 @@ bool FileIO::Seek(int32 pos, SeekMethod method)
 
 int32 FileIO::Tellp()
 {
-    if (!fp)
-        return -1;
-    
-	return (int)ftell(fp);
+	if (!(GetFlags() & open))
+		return 0;
+
+	return SetFilePointer(hfile, 0, 0, FILE_CURRENT) - lorigin;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,5 +190,7 @@ int32 FileIO::Tellp()
 
 bool FileIO::SetEndOfFile()
 {
-    return false;
+	if (!(GetFlags() & open))
+		return false;
+	return ::SetEndOfFile(hfile) != 0;
 }

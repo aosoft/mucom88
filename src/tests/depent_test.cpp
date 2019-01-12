@@ -3,7 +3,11 @@
 
 #include <stdio.h>
 
-#include "osdep.h"
+#ifdef MUCOM88WIN
+#include "osdep_win32.h"
+#else
+#include "osdep_dummy.h"
+#endif
 
 class TestClass  {
 public:
@@ -33,7 +37,12 @@ private:
 };
 
 TestClass::TestClass() {
-    osd = new OsDependent();
+#ifdef MUCOM88WIN
+    osd = new OsDependentWin32();
+#else
+    osd = new OsDependentDummy();
+#endif
+
     osd->CoInitialize();
 }
 

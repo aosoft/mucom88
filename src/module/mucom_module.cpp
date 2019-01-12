@@ -5,7 +5,6 @@
 #include <string.h>
 #include <unistd.h>
 
-
 #include "mucom_module.h"
 
 #define MUCOM_DEFAULT_PCMFILE "mucompcm.bin"
@@ -16,7 +15,8 @@ MucomModule::MucomModule() {
   pcmfile = MUCOM_DEFAULT_PCMFILE;
   outfile = DEFAULT_OUTFILE;
   voicefile = NULL;
-  compileResult = NULL;
+  resultText = NULL;
+  volume = 1.0f;
 }
 
 MucomModule::~MucomModule() {
@@ -39,6 +39,11 @@ void MucomModule::SetOutput(const char *file) {
   outfile = file;
 }
 
+void MucomModule::SetVolume(double vol) {
+  volume = vol;
+}
+
+
 bool MucomModule::Open(const char *workingDirectory, const char *songFilename) {
   chdir(workingDirectory);
   mucom = new CMucom();
@@ -47,28 +52,38 @@ bool MucomModule::Open(const char *workingDirectory, const char *songFilename) {
   mucom->Reset(cmpopt);
   if (pcmfile) mucom->LoadPCM(pcmfile);
   if (voicefile) mucom->LoadFMVoice(voicefile);
-  mucom->CompileFile(songFilename, outfile);
+  int cr = mucom->CompileFile(songFilename, outfile);
 
-  mucom->PrintInfoBuffer();
-  const char *result = mucom->GetMessageBuffer();
+  AddResultBuffer(GetMucomMessage());
+  FreeMucom();
 
-  if (compileResult) {
-    delete compileResult;
-    compileResult = NULL;
-  }
-  
-  compileResult = new char[strlen(result) + 1];
-  strcpy(compileResult,result);
-
-  delete mucom;
+  if (cr != 0) return false; 
 
   // 再生用に再度準備
   mucom = new CMucom();
   cmpopt = MUCOM_CMPOPT_STEP;
   mucom->Init(NULL,cmpopt,audioRate);
   mucom->Reset(0);
-  if (mucom->LoadMusic(outfile) < 0) return false;
+  if (mucom->LoadMusic(outfile) < 0) {
+      AddResultBuffer(GetMucomMessage());
+    return false;
+  }
   return true;
+}
+
+const char *MucomModule::GetMucomMessage() {
+  mucom->PrintInfoBuffer();
+  return mucom->GetMessageBuffer();
+}
+
+void MucomModule::AddResultBuffer(const char *text) {
+  int len = strlen(text);
+  if (resultText != NULL) len += strlen(resultText);
+  char *ptr = new char[len+1];
+  if (resultText != NULL) strcpy(ptr, resultText); else  ptr[0] = 0x00;
+  strcat(ptr, text);
+  FreeResultBuffer();
+  resultText = ptr;
 }
 
 bool MucomModule::Play() {
@@ -77,20 +92,27 @@ bool MucomModule::Play() {
     return true;
 }
 
+
 void MucomModule::Close() {
-  if (mucom) {
-    delete mucom;
-    mucom = NULL;
-  }
-  if (compileResult) {
-    delete compileResult;
-    compileResult = NULL;
-  }
+  FreeMucom();
+  FreeResultBuffer();
+}
+
+void MucomModule::FreeMucom() {
+  if (!mucom) return;
+  delete mucom;
+  mucom = NULL;
+}
+
+void MucomModule::FreeResultBuffer() {
+  if (!resultText) return;
+  delete resultText;
+  resultText = NULL;
 }
 
 const char *MucomModule::GetResult() {
-  if (!compileResult) return "";
-  return compileResult;
+  if (!resultText) return "";
+  return resultText;
 }
 
 void MucomModule::Mix(short *data, int samples) {
@@ -102,7 +124,8 @@ void MucomModule::Mix(short *data, int samples) {
       mucom->RenderAudio(buf, s);
 
       for(int i=0; i < s*2; i++) {
-          int v=buf[i];
+          int v=(buf[i]*volume);
+
           data[index] = v > 32767 ? 32767 : (v < -32768 ? -32768 : v);
           index++;
       }
