@@ -172,6 +172,7 @@ int OsDependentWin32::GetMilliseconds() {
 void OsDependentWin32::Delay(int ms) {
 	Sleep(ms);
 }
+
 int OsDependentWin32::StartThread(void)
 {
 	// ストリームスレッドを開始する
@@ -312,7 +313,7 @@ void OsDependentWin32::WaitSendingAudio() {
 	for (int i = 0; i < 300 && sending; i++) Sleep(10);
 }
 
-bool OsDependentWin32::SendAudio()
+bool OsDependentWin32::SendAudio(int ms)
 {
 	//StreamSend();
 	SetEvent(hevent);

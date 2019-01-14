@@ -17,12 +17,7 @@
 #define BUFSIZE 200			// Stream Buffer 200ms
 #define baseclock 7987200		// Base Clock
 
-
-#ifdef MUCOM88WIN
-#include "win32/osdep_win.h"		// とりあえず仮作成中
-#else
-#include "dummy/osdep_dummy.h"
-#endif
+#include "mucomvm_os.h"
 
 /*------------------------------------------------------------*/
 /*
@@ -154,16 +149,9 @@ void mucomvm::InitSoundSystem(int rate)
 	predelay = 0;
 
 	// OS依存部分
-#ifdef MUCOM88WIN
 	{
-		OsDependentWin32 *osdwin32 = new OsDependentWin32();
-		osd = osdwin32;
+		osd = new OSDEP_CLASS();
 	}
-#else
-	{
-		osd = new OsDependentDummy();
-	}
-#endif
 
 	if (osd == NULL) return;
 
@@ -824,9 +812,10 @@ void mucomvm::UpdateTime(int base)
 	}
 
 	if (stream_event) {
-		time_scount = 0;
 		stream_event = false;
-		osd->SendAudio();
+		osd->SendAudio(time_scount);
+		time_scount = 0;
+
 		//SetEvent(hevent);
 		//StreamSend();
 	}
@@ -868,7 +857,7 @@ void mucomvm::checkThreadBusy(void)
 {
 	//		スレッドがVMを使用しているかチェック
 	//
-	for (int i = 0; i < 300 && busyflag; i++) Sleep(10);
+	for (int i = 0; i < 300 && busyflag; i++) osd->Delay(10);
 }
 
 

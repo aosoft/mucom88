@@ -13,6 +13,11 @@
 #include "cmucom.h"
 #include "wavout.h"
 
+// main‚ðSDL_main‚É‚·‚é‚½‚ß‚É•K—v
+#ifdef USE_SDL
+#include <SDL.h>
+#endif
+
 //#define DEBUG_MUCOM
 
 #define DEFAULT_OUTFILE "mucom88.mub"
@@ -58,6 +63,11 @@ int main( int argc, char *argv[] )
 	char *outfile;
 	char *wavfile;
 	char *voicefile;
+
+#if defined(USE_SDL) && defined(_WIN32)
+	freopen( "CON", "w", stdout );
+	freopen( "CON", "w", stderr );
+#endif
 
 	//	check switch and prm
 

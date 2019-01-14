@@ -28,7 +28,7 @@ bool OsDependentDummy::InitAudio(void *hwnd, int Rate, int BufferSize) {
 void OsDependentDummy::FreeAudio() {
 }
 
-bool OsDependentDummy::SendAudio() {
+bool OsDependentDummy::SendAudio(int ms) {
 	return true;
 }
 

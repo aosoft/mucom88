@@ -3,7 +3,10 @@
         {
             "name": "Win32",
             "includePath": [
-                "${workspaceFolder}/**"
+                "C:/msys64/mingw32/include/c++/7.3.0",
+                "C:/msys64/mingw32/include",
+                "${workspaceFolder}/**",
+                "C:/msys64/mingw32/include/SDL"
             ],
             "defines": [
                 "_DEBUG",

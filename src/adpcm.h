@@ -1,6 +1,19 @@
 #pragma once
 
-#include	<windows.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#define BOOL int
+#define TRUE 1
+#define FALSE 0
+typedef unsigned char BYTE;
+typedef unsigned long DWORD;
+typedef unsigned short WORD;
+#endif
 
 typedef struct {
 	BYTE	bID[4];		// ƒwƒbƒ_

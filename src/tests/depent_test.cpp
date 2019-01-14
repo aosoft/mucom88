@@ -3,11 +3,12 @@
 
 #include <stdio.h>
 
-#ifdef MUCOM88WIN
-#include "osdep_win32.h"
-#else
-#include "osdep_dummy.h"
+// mainをSDL_mainにするために必要
+#ifdef USE_SDL
+#include <SDL.h>
 #endif
+
+#include "mucomvm_os.h"
 
 class TestClass  {
 public:
@@ -37,12 +38,7 @@ private:
 };
 
 TestClass::TestClass() {
-#ifdef MUCOM88WIN
-    osd = new OsDependentWin32();
-#else
-    osd = new OsDependentDummy();
-#endif
-
+    osd = new OSDEP_CLASS();
     osd->CoInitialize();
 }
 
@@ -98,7 +94,7 @@ void TestClass::AudioTimerCallback(int tick) {
     StreamCount += tick;
     if (StreamCount >= 20) {
         StreamCount = 0;
-        osd->SendAudio();
+        osd->SendAudio(StreamCount);
     }  
 }
 
@@ -117,7 +113,17 @@ void TestClass::AudioCallback(void *mix,int size) {
 }
 
 
-static void RunTimerCallback(void *CallbackInstance,void *MethodInstance);
+// コールバックで呼ばれる
+static void RunTimerCallback(void *CallbackInstance,void *MethodInstance) {
+    TimerCallback *cb = (TimerCallback *)CallbackInstance;
+    ((TestClass *)MethodInstance)->TimerCallback(cb->tick);
+}
+
+void TestClass::TimerCallback(int tick) {
+    PassTick += (tick/1024);
+}
+
+
 
 // タイマー
 void TestClass::TestTimer() {
@@ -134,17 +140,6 @@ void TestClass::TestTimer() {
     osd->FreeTimer();
 }
 
-// コールバックで呼ばれる
-static void RunTimerCallback(void *CallbackInstance,void *MethodInstance) {
-    TimerCallback *cb = (TimerCallback *)CallbackInstance;
-    ((TestClass *)MethodInstance)->TimerCallback(cb->tick);
-}
-
-
-
-void TestClass::TimerCallback(int tick) {
-    PassTick += tick;
-}
 
 
 // タイミング
@@ -160,6 +155,12 @@ void TestClass::TestTiming() {
 // メイン
 int main(int argc, char *argv[])
 {
+#if defined(USE_SDL) && defined(_WIN32)
+    freopen( "CON", "w", stdout );
+    freopen( "CON", "w", stderr );
+#endif
+
+
     TestClass *tc = new TestClass();
     tc->Info();
     tc->TestTiming();

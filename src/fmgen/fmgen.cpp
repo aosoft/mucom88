@@ -402,6 +402,9 @@ void Operator::Prepare()
 		case release:
 			SetEGRate(Min(63, rr_ + key_scale_rate_));
 			break;
+		case next:
+		case off:
+			break;
 		}
 
 		// SSG-EG
@@ -579,6 +582,10 @@ void FM::Operator::EGCalc()
 					break;
 				case release:
 					ShiftPhase(off);
+					break;
+				case next:
+				case attack:
+				case off:
 					break;
 				}
 			}

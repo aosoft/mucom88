@@ -1,6 +1,12 @@
 #include <stdio.h>
 #include <string.h>
 
+// mainをSDL_mainにするために必要
+#ifdef USE_SDL
+#include <SDL.h>
+#endif
+
+
 #include "mucom_module.h"
 
 void WriteWORD(unsigned char *p, unsigned short v) {
@@ -89,6 +95,11 @@ int compileWav(const char *filename, const char *wavFilename) {
 
 int main(int argc, char *argv[])
 {
+#if defined(USE_SDL) && defined(_WIN32)
+    freopen( "CON", "w", stdout );
+    freopen( "CON", "w", stderr );
+#endif
+
     printf("MucomModule Test\n");
     if (compileWav("sampl1.muc","sampl1.wav") < 0) return -1; 
     if (compileWav("sampl2.muc","sampl2.wav") < 0) return -1; 
