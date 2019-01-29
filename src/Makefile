@@ -8,9 +8,10 @@
 CXX = g++
 CC = gcc
 CFLAGS = 
-CXXFLAGS = -Wno-write-strings
-CXXFLAGS += -Wno-invalid-source-encoding
-COMMON_FLAGS = 
+CXXFLAGS = 
+# CXXFLAGS += -Wno-write-strings
+COMMON_FLAGS = # -Wall -Werror
+# COMMON_FLAGS += -Wall -Werror
 LDFLAGS = 
 DEFINES = 
 OBJS_DIR = objs
@@ -56,8 +57,13 @@ SRCS += md5.c
 SRCS += soundbuf.cpp
 
 SRCS += cmucom.cpp
-SRCS += mucomerror.cpp
 SRCS += mucomvm.cpp
+
+ifeq ($(WIN32),1)
+SRCS += mucomerror.cpp
+else
+SRCS += mucomerror_utf8.cpp
+endif
 
 SRCS += plugin/plugin.cpp
 
@@ -181,6 +187,9 @@ $(TARGET) : $(MAIN_OBJS) $(OBJS)
 
 makedir :
 	mkdir -p $(OBJS_DIR) $(addprefix $(OBJS_DIR)/,$(DIRS))
+
+mucomerror_utf8.cpp :
+	iconv -f cp932 -t utf8 mucomerror.cpp > $@ 
 
 $(OBJS_DIR)/%.o : %.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<

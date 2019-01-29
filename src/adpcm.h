@@ -49,17 +49,17 @@ private:
 	DATA_CHUNK	*m_pDataChunk;
 
 	// ADPCM-A
-	int acc;
-	int decstep;
-	int diff;
-	int step;
-	int predsample;
-	int index;
-	int prevsample;
-	int previndex;
+	// int acc;
+	// int decstep;
+	// int diff;
+	// int step;
+	// int predsample;
+	// int index;
+	// int prevsample;
+	// int previndex;
 	static short step_size[49];
 	static int step_adj[16];
-	int jedi_table[16 * 49];
+	// int jedi_table[16 * 49];
 public:
 	Adpcm();
 	~Adpcm();

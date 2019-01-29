@@ -258,7 +258,7 @@ namespace FM
 		uint	aml_;
 		uint	pml_;
 		int		pmv_;
-		OpType	optype_;
+		// OpType	optype_;
 		uint32	multable_[4][16];
 	};
 }

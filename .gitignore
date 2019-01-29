@@ -13,3 +13,14 @@ src/mod_test
 src/mod_test.exe
 src/miniplay
 src/miniplay.exe
+
+xcode/miniosx.xcodeproj/xcuserdata
+xcode/DerivedData
+xcode/miniosx.xcodeproj/project.xcworkspace/xcuserdata
+
+src/mucom88.vcxproj.user
+src/.vs/
+src/Debug
+
+.DS_Store
+xcode/.DS_Store
