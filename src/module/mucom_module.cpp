@@ -35,6 +35,10 @@ void MucomModule::SetVoice(const char *file) {
   voicefile = file;
 }
 
+void MucomModule::SetOutput(const char *file) {
+  outfile = file;
+}
+
 void MucomModule::SetVolume(double vol) {
   volume = vol;
 }

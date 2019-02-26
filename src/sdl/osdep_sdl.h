@@ -9,6 +9,7 @@
 #include "../osdep.h"
 #include "audiotime.h"
 #include "audiobuffer.h"
+#include <SDL_timer.h>
 
 class OsDependentSdl : public OsDependent {
 public:
@@ -63,7 +64,7 @@ public:
     bool AudioOpenFlag;
 
 private:
-	void *TimerId;
+	SDL_TimerID TimerId;
 };
 
 #endif

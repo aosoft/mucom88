@@ -1,3 +1,5 @@
+#define SDL_MAIN_HANDLED
+
 #include <stdio.h>
 #include <SDL.h>
 #include "audiosdl.h"

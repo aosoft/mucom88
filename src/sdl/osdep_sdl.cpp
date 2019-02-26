@@ -180,7 +180,7 @@ bool OsDependentSdl::InitTimer() {
 }
 
 void OsDependentSdl::FreeTimer() {
-    SDL_RemoveTimer((SDL_TimerID)TimerId);
+    SDL_RemoveTimer(TimerId);
 }
 
 // オーディオ更新用タイマー
