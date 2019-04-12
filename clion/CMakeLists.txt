@@ -16,13 +16,19 @@ file(GLOB SOURCES
 list(FILTER SOURCES EXCLUDE REGEX "/src/mucomerror.cpp")
 list(FILTER SOURCES EXCLUDE REGEX "/src/main.cpp")
 
-find_path(SDL2_INCLUDE_DIR NAMES SDL.h PATH_SUFFIXES SDL2)
+if (EMSCRIPTEN)
+    find_path(SDL_INCLUDE_DIR NAMES SDL.h PATH_SUFFIXES SDL)
+else()
+    find_path(SDL_INCLUDE_DIR NAMES SDL.h PATH_SUFFIXES SDL2)
+endif()
 
 add_executable(${CMAKE_PROJECT_NAME} ${SOURCES})
 
 target_include_directories(${CMAKE_PROJECT_NAME}
-        PRIVATE ${SDL2_INCLUDE_DIR}
+        PRIVATE ${SDL_INCLUDE_DIR}
         PRIVATE ../src
         PRIVATE ../src/module)
 
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE SDL2)
+if (NOT EMSCRIPTEN)
+    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE SDL2)
+endif()
