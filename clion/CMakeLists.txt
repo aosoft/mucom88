@@ -14,9 +14,15 @@ file(GLOB SOURCES
         ../src/Z80/*.cpp)
 
 list(FILTER SOURCES EXCLUDE REGEX "/src/mucomerror.cpp")
-list(FILTER SOURCES EXCLUDE REGEX "/src/main.cpp")
+
+if (MINIPLAY)
+    list(FILTER SOURCES EXCLUDE REGEX "/src/main.cpp")
+else()
+    list(FILTER SOURCES EXCLUDE REGEX "/src/sdl/miniplay.cpp")
+endif()
 
 if (EMSCRIPTEN)
+
     if (WEB_BROWSER)
         set(CMAKE_CXX_FLAGS "--pre-js ${PROJECT_SOURCE_DIR}/EmscriptenPre.js -s WASM=0")
         set(CMAKE_EXECUTABLE_SUFFIX ".html")
