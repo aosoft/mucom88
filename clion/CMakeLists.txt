@@ -24,7 +24,7 @@ endif()
 if (EMSCRIPTEN)
 
     if (WEB_BROWSER)
-        set(CMAKE_CXX_FLAGS "--pre-js ${PROJECT_SOURCE_DIR}/EmscriptenPre.js -s WASM=0")
+        set(CMAKE_CXX_FLAGS "--pre-js ${PROJECT_SOURCE_DIR}/EmPre.js --post-js ${PROJECT_SOURCE_DIR}/EmPost.js -s WASM=0")
         set(CMAKE_EXECUTABLE_SUFFIX ".html")
     else()
         set(CMAKE_CXX_FLAGS "-s NODERAWFS=1 -s WASM=0")
