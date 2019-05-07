@@ -24,7 +24,7 @@ endif()
 if (EMSCRIPTEN)
 
     if (WEB_BROWSER)
-        set(CMAKE_CXX_FLAGS "--pre-js ${PROJECT_SOURCE_DIR}/EmPre.js --post-js ${PROJECT_SOURCE_DIR}/EmPost.js -s WASM=0")
+        set(CMAKE_CXX_FLAGS "--pre-js ${PROJECT_SOURCE_DIR}/EmPre.js -s WASM=0")
         set(CMAKE_EXECUTABLE_SUFFIX ".html")
     else()
         set(CMAKE_CXX_FLAGS "-s NODERAWFS=1 -s WASM=0")
@@ -37,6 +37,12 @@ else()
 endif()
 
 add_executable(${CMAKE_PROJECT_NAME} ${SOURCES})
+
+if (EMSCRIPTEN)
+    add_custom_command(
+        TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+        COMMAND python ARGS "${PROJECT_SOURCE_DIR}/PostBuild.py" "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.js")
+endif()
 
 target_include_directories(${CMAKE_PROJECT_NAME}
         PRIVATE ${SDL_INCLUDE_DIR}
